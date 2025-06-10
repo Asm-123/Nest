@@ -1,0 +1,32 @@
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+
+import { TodosModule } from './todos.module';
+import { UsersModule } from './modules/users/users.module';
+import { LoggingMiddleware } from './core/loggingMiddleware';
+import { ConfigModule } from '@nestjs/config';
+import { Mongoose } from 'mongoose';
+import { MongooseModule } from '@nestjs/mongoose';
+import { AuthModule } from './modules/auth/auth.module';
+import { APP_GUARD } from '@nestjs/core';
+import { AuthService } from './modules/auth/auth.service';
+
+@Module({
+  imports: [
+    TodosModule,
+    UsersModule,
+    ConfigModule.forRoot({ isGlobal: true }),
+    MongooseModule.forRoot(
+      process.env.MONGO_URL ?? 'mongodb://localhost:27017/todo_db_env',
+    ),
+    AuthModule,
+  ],
+  controllers: [AppController],
+  providers: [AppService],
+})
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(LoggingMiddleware).forRoutes('*');
+  }
+}
