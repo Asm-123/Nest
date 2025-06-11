@@ -12,10 +12,17 @@
     "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
-    "strictNullChecks": true,
+    "strictNullChecks": true, // <--- خليها True زي ما هي
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false
-  }
+    "noFallthroughCasesInSwitch": false,
+    "typeRoots": ["./node_modules/@types", "./src/types"], // <--- أضف هذا السطر
+    "paths": {
+      // <--- ممكن تكون دي مهمة لو بتستخدم aliases
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.d.ts"], // <--- تأكد من وجود هذا السطر
+  "exclude": ["node_modules", "dist"]
 }

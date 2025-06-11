@@ -1,16 +1,14 @@
+//     // src/modules/users/dto/create-user.dto.ts
 import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class CreateUserDto {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-  @IsNotEmpty({ message: 'Name is required' })
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-  @IsString({ message: 'Name must be a string' })
-  name: string;
+  @IsNotEmpty({ message: 'Full Name is required' })
+  @IsString({ message: 'Full Name must be a string' })
+  @MinLength(3, { message: 'Full Name must be at least 3 characters' })
+  fullName: string;
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   @IsNotEmpty({ message: 'Email is required' })
-  @IsString({ message: 'Name must be a string' })
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+  @IsString({ message: 'Email must be a string' })
   @IsEmail({}, { message: 'Email must be valid' })
   email: string;
 

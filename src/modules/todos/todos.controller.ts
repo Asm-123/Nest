@@ -1,23 +1,28 @@
+/* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
 import {
-  Controller,
-  Post,
-  Get,
   Body,
-  Param,
-  Put,
+  Controller,
   Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
   UseGuards,
-  SetMetadata,
+  Query, // <--- تأكد إنها هنا
 } from '@nestjs/common';
 import { TodosService } from './todos.service';
 import { CreateTodoDto } from './CreateTodo';
 import { ConfigService } from '@nestjs/config';
-import { ParseObjectIdPipe } from '@nestjs/mongoose';
-import { JwtAuthGuard } from '../auth/guards/jwt-guads';
-import { PublicEndpoint } from './PublicEndpoint';
+
 import { RolesAuthGuard } from '../auth/guards/roles.guard';
 import { UserRole } from '../users/entities/user.entity';
+
+import { UpdateTodoDto } from './UpdateTodoDto';
+import { Types } from 'mongoose'; // <--- استيراد Types فقط
+import { Request } from 'express'; // <--- استيراد Request
 import { Roles } from './Roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-guads';
 
 interface ApiResponse {
   status: boolean;
@@ -26,6 +31,7 @@ interface ApiResponse {
 }
 
 @Controller('todos')
+@UseGuards(JwtAuthGuard, RolesAuthGuard)
 export class TodosController {
   constructor(
     private readonly todosService: TodosService,
@@ -34,34 +40,59 @@ export class TodosController {
     const x = this.configService.get('db_URL');
     console.log(x);
   }
-  @UseGuards(JwtAuthGuard, RolesAuthGuard)
-  @Roles(UserRole.ADMIN)
+
   @Post()
-  async createTodo(@Body() todoBody: CreateTodoDto): Promise<ApiResponse> {
-    const todo = await this.todosService.create(todoBody);
+  @Roles(UserRole.USER, UserRole.ADMIN)
+  async create(
+    @Req() req: Request,
+    @Body() createTodoDto: CreateTodoDto,
+  ): Promise<ApiResponse> {
+    const todo = await this.todosService.create(
+      new Types.ObjectId(req.user!.userId),
+      createTodoDto,
+    );
     return {
       status: true,
       data: todo,
       message: 'Todo created successfully',
     };
   }
-  @PublicEndpoint()
-  @SetMetadata('isPublic', true)
+
   @Get()
-  async findAllTodos(): Promise<ApiResponse> {
-    const todos = await this.todosService.findAll();
+  @Roles(UserRole.USER, UserRole.ADMIN)
+  async findAll(
+    @Req() req: Request,
+    @Query('isCompleted') isCompleted?: string,
+    @Query('isAssigned') isAssigned?: string,
+  ): Promise<ApiResponse> {
+    const completed = isCompleted ? isCompleted === 'true' : undefined;
+    const assigned = isAssigned ? isAssigned === 'true' : undefined;
+
+    const todos = await this.todosService.findAll(
+      new Types.ObjectId(req.user!.userId),
+
+      req.user!.role as UserRole,
+      completed,
+      assigned,
+    );
     return {
       status: true,
       data: todos,
       message: 'Todos fetched successfully',
     };
   }
-  @PublicEndpoint()
   @Get(':id')
+  @Roles(UserRole.USER, UserRole.ADMIN)
   async findOne(
-    @Param('id', ParseObjectIdPipe) id: string,
+    @Param('id') id: string,
+    @Req() req: Request,
   ): Promise<ApiResponse> {
-    const todo = await this.todosService.findOne(id);
+    const todo = await this.todosService.findOne(
+      id,
+      new Types.ObjectId(req.user!.userId),
+      req.user!.role as UserRole,
+    );
+
     return {
       status: true,
       data: todo,
@@ -69,12 +100,19 @@ export class TodosController {
     };
   }
 
-  @Put(':id')
-  async updateTodo(
-    @Param('id', ParseObjectIdPipe) id: string,
-    @Body() body: CreateTodoDto,
+  @Patch(':id')
+  @Roles(UserRole.USER, UserRole.ADMIN)
+  async update(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() updateTodoDto: UpdateTodoDto,
   ): Promise<ApiResponse> {
-    const updatedTodo = await this.todosService.update(id, body);
+    const updatedTodo = await this.todosService.update(
+      id,
+      new Types.ObjectId(req.user!.userId),
+      req.user!.role as UserRole,
+      updateTodoDto,
+    );
     return {
       status: true,
       data: updatedTodo,
@@ -83,14 +121,62 @@ export class TodosController {
   }
 
   @Delete(':id')
-  async deleteTodo(
-    @Param('id', ParseObjectIdPipe) id: string,
+  @Roles(UserRole.USER, UserRole.ADMIN)
+  async remove(
+    @Req() req: Request,
+    @Param('id') id: string,
   ): Promise<ApiResponse> {
-    await this.todosService.delete(id);
+    await this.todosService.remove(
+      id,
+      new Types.ObjectId(req.user!.userId), // <--- هنا نستخدم !
+      req.user!.role as UserRole, // <--- هنا نستخدم !
+    );
     return {
       status: true,
       data: null,
       message: 'Todo deleted successfully',
+    };
+  }
+  @Patch(':id/complete')
+  @Roles(UserRole.USER, UserRole.ADMIN)
+  async completeTodo(
+    @Req() req: Request,
+    @Param('id') id: string,
+  ): Promise<ApiResponse> {
+    const completedTodo = await this.todosService.completeTodo(
+      id,
+      new Types.ObjectId(req.user!.userId),
+      req.user!.role as UserRole, // <<<<< أضيفي السطر ده هنا!
+    );
+    return {
+      status: true,
+      data: completedTodo,
+      message: 'Todo marked as completed',
+    };
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Patch(':id/assign/:userId')
+  async assignTodo(
+    @Param('id') todoId: string,
+    @Param('userId') assigneeId: string,
+  ): Promise<ApiResponse> {
+    const assignedTodo = await this.todosService.assignTodo(todoId, assigneeId);
+    return {
+      status: true,
+      data: assignedTodo,
+      message: 'Todo assigned successfully',
+    };
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Patch(':id/unassign')
+  async unassignTodo(@Param('id') todoId: string): Promise<ApiResponse> {
+    const unassignedTodo = await this.todosService.unassignTodo(todoId);
+    return {
+      status: true,
+      data: unassignedTodo,
+      message: 'Todo unassigned successfully',
     };
   }
 }
